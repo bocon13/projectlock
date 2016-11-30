@@ -40,5 +40,10 @@ public abstract class AbstractLockCommand extends SshCommand {
         }
         return keys.build();
     }
+
+    protected boolean isAllowed() {
+        return user.getCapabilities().canAdministrateServer() ||
+                (project != null && project.isOwner());
+    }
 }
 

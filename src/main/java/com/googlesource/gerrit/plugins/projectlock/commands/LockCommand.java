@@ -9,12 +9,13 @@ public final class LockCommand extends AbstractLockCommand {
 
     @Override
     protected void run() {
-        stdout.print(lockStore.get().lock(user.getAccountId(), getLockKeys()) + "\n");
-
-
-
-        //            throw new CmdLineException(owner, e.getMessage());
-
+        if (isAllowed()) {
+            if (!lockStore.get().lock(user.getAccountId(), getLockKeys())) {
+                stdout.print("Lock failed\n");
+            }
+        } else {
+            stdout.print("User is not permitted to lock this project\n");
+        }
     }
 }
 

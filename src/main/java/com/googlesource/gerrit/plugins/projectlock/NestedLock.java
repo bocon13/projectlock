@@ -4,6 +4,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -95,6 +97,51 @@ public class NestedLock<K, V> {
             return null;
         }
         return lock.getValue(keys.subList(1, keys.size()));
+    }
+
+    private void getEntries(List<K> prefix,
+                            ImmutableList.Builder<Entry<K, V>> result) {
+        V value = stub.getValue();
+        if (value != null) {
+            Preconditions.checkState(locks.size() == 0);
+            result.add(Entry.newEntry(prefix, value));
+            return;
+        }
+        locks.entrySet().forEach(e -> {
+            e.getValue().getEntries(
+                    ImmutableList.<K>builder()
+                            .addAll(prefix).add(e.getKey())
+                            .build(),
+                    result);
+        });
+    }
+
+    public List<Entry<K, V>> getEntries() {
+        ImmutableList.Builder<Entry<K, V>> result = ImmutableList.builder();
+        getEntries(Collections.emptyList(), result);
+        return result.build();
+    }
+
+    public static class Entry<K, V> {
+        private final List<K> prefix;
+        private final V value;
+
+        public static <K, V> Entry<K, V> newEntry(List<K> prefix, V value) {
+            return new Entry<>(prefix, value);
+        }
+
+        private Entry(List<K> prefix, V value) {
+            this.prefix = prefix;
+            this.value = value;
+        }
+
+        public List<K> prefix() {
+            return prefix;
+        }
+
+        public V value() {
+            return value;
+        }
     }
 
     private static class LockStub<K, V> {
