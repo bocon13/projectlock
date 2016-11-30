@@ -1,18 +1,15 @@
 package com.googlesource.gerrit.plugins.projectlock.commands;
 
+import com.google.common.collect.ImmutableList;
 import com.google.gerrit.reviewdb.client.Branch;
 import com.google.gerrit.reviewdb.client.Project;
 import com.google.gerrit.server.CurrentUser;
 import com.google.gerrit.server.project.ProjectControl;
-import com.google.gerrit.sshd.CommandMetaData;
 import com.google.gerrit.sshd.SshCommand;
 import com.google.gwtorm.client.Key;
 import com.google.inject.Inject;
 import com.googlesource.gerrit.plugins.projectlock.ProjectLockStore;
 import org.kohsuke.args4j.Argument;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 
@@ -30,8 +27,8 @@ public abstract class AbstractLockCommand extends SshCommand {
     @Inject
     protected CurrentUser user;
 
-    protected Key[] getLockKeys() {
-        List<Key> keys = new ArrayList<>();
+    protected ImmutableList<Key> getLockKeys() {
+        ImmutableList.Builder<Key> keys = ImmutableList.builder();
         if (project != null) {
             Project.NameKey projectKey = project.getProject().getNameKey();
             keys.add(projectKey);
@@ -41,7 +38,7 @@ public abstract class AbstractLockCommand extends SshCommand {
                 keys.add(branchKey);
             }
         }
-        return keys.toArray(new Key[keys.size()]);
+        return keys.build();
     }
 }
 
