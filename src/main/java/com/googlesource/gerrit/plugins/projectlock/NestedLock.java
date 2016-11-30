@@ -23,15 +23,17 @@ public class NestedLock<K, V> {
     }
 
     public boolean lock(V newValue, ImmutableList<K> keys) {
-        if (keys == null || keys.size() == 0) {
-            return locks.size() == 0 && stub.lock(newValue);
+        synchronized (stub) {
+            if (keys == null || keys.size() == 0) {
+                return locks.size() == 0 && stub.lock(newValue);
+            }
+            if (stub.getValue() != null) {
+                return false;
+            }
+            K key = keys.get(0);
+            NestedLock<K, V> lock = locks.computeIfAbsent(key, k -> new NestedLock<>());
+            return lock.lock(newValue, keys.subList(1, keys.size()));
         }
-        if (stub.getValue() != null) {
-            return false;
-        }
-        K key = keys.get(0);
-        NestedLock<K, V> lock = locks.computeIfAbsent(key, k -> new NestedLock<>());
-        return lock.lock(newValue, keys.subList(1, keys.size()));
     }
 
     public boolean unlock(V newValue, K... keys) {
@@ -39,27 +41,31 @@ public class NestedLock<K, V> {
     }
 
     public boolean unlock(V existingValue, ImmutableList<K> keys) {
-        if (keys == null || keys.size() == 0) {
-            return locks.size() == 0 && stub.unlock(existingValue);
-        }
-        if (stub.getValue() != null) {
-            return false;
-        }
-        K key = keys.get(0);
-        AtomicBoolean success = new AtomicBoolean(false);
-        locks.computeIfPresent(key, (k, lock) -> {
-            if (lock.unlock(existingValue, keys.subList(1, keys.size()))) {
-                success.set(true);
-                return lock.isEmpty() ? null : lock;
-            } else {
-                return lock;
+        synchronized (stub) {
+            if (keys == null || keys.size() == 0) {
+                return locks.size() == 0 && stub.unlock(existingValue);
             }
-        });
-        return success.get();
+            if (stub.getValue() != null) {
+                return false;
+            }
+            K key = keys.get(0);
+            AtomicBoolean success = new AtomicBoolean(false);
+            locks.computeIfPresent(key, (k, lock) -> {
+                if (lock.unlock(existingValue, keys.subList(1, keys.size()))) {
+                    success.set(true);
+                    return lock.isEmpty() ? null : lock;
+                } else {
+                    return lock;
+                }
+            });
+            return success.get();
+        }
     }
 
     private boolean isEmpty() {
-        return locks.size() == 0 && stub.getValue() == null;
+        synchronized (stub) {
+            return locks.size() == 0 && stub.getValue() == null;
+        }
     }
 
     public boolean isLocked(K... keys) {
@@ -67,53 +73,59 @@ public class NestedLock<K, V> {
     }
 
     public boolean isLocked(ImmutableList<K> keys) {
-        if (stub.getValue() != null) {
-            return true;
+        synchronized (stub) {
+            if (stub.getValue() != null) {
+                return true;
+            }
+            if (keys == null || keys.size() == 0) {
+                return false;
+            }
+            NestedLock<K, V> lock = locks.get(keys.get(0));
+            if (lock == null) {
+                return false;
+            }
+            return lock.isLocked(keys.subList(1, keys.size()));
         }
-        if (keys == null || keys.size() == 0) {
-            return false;
-        }
-        NestedLock<K, V> lock = locks.get(keys.get(0));
-        if (lock == null) {
-            return false;
-        }
-        return lock.isLocked(keys.subList(1, keys.size()));
     }
 
     public V getValue(K... keys) {
         return getValue(ImmutableList.copyOf(keys));
     }
     public V getValue(ImmutableList<K> keys) {
-        V value = stub.getValue();
-        if (value != null) {
-            Preconditions.checkState(locks.size() == 0);
-            return value;
+        synchronized (stub) {
+            V value = stub.getValue();
+            if (value != null) {
+                Preconditions.checkState(locks.size() == 0);
+                return value;
+            }
+            if (keys == null || keys.size() == 0) {
+                return null;
+            }
+            NestedLock<K, V> lock = locks.get(keys.get(0));
+            if (lock == null) {
+                return null;
+            }
+            return lock.getValue(keys.subList(1, keys.size()));
         }
-        if (keys == null || keys.size() == 0) {
-            return null;
-        }
-        NestedLock<K, V> lock = locks.get(keys.get(0));
-        if (lock == null) {
-            return null;
-        }
-        return lock.getValue(keys.subList(1, keys.size()));
     }
 
     private void getEntries(List<K> prefix,
                             ImmutableList.Builder<Entry<K, V>> result) {
-        V value = stub.getValue();
-        if (value != null) {
-            Preconditions.checkState(locks.size() == 0);
-            result.add(Entry.newEntry(prefix, value));
-            return;
+        synchronized (stub) {
+            V value = stub.getValue();
+            if (value != null) {
+                Preconditions.checkState(locks.size() == 0);
+                result.add(Entry.newEntry(prefix, value));
+                return;
+            }
+            locks.entrySet().forEach(e -> {
+                e.getValue().getEntries(
+                        ImmutableList.<K>builder()
+                                .addAll(prefix).add(e.getKey())
+                                .build(),
+                        result);
+            });
         }
-        locks.entrySet().forEach(e -> {
-            e.getValue().getEntries(
-                    ImmutableList.<K>builder()
-                            .addAll(prefix).add(e.getKey())
-                            .build(),
-                    result);
-        });
     }
 
     public List<Entry<K, V>> getEntries() {
