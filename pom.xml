@@ -6,12 +6,12 @@
 
     <groupId>com.googlesource.gerrit.plugins.projectlock</groupId>
     <artifactId>projectlock</artifactId>
-    <version>2.13.3</version>
+    <version>v2.14.3</version>
     <packaging>jar</packaging>
 
     <properties>
         <Gerrit-ApiType>plugin</Gerrit-ApiType>
-        <Gerrit-ApiVersion>2.13.3</Gerrit-ApiVersion>
+        <Gerrit-ApiVersion>2.14.3</Gerrit-ApiVersion>
     </properties>
 
     <build>
